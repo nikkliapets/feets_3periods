@@ -162,7 +162,7 @@ class LombScargle(Extractor):
         "lscargle_kwds": {
             "autopower_kwds": {
                 "normalization": "standard",
-                "nyquist_factor": 100,
+                "nyquist_factor": 1,
             }
         },
         "fap_kwds": {"normalization": "standard", "method": "simple"},

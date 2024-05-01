@@ -24,10 +24,17 @@
 # SOFTWARE.
 
 # =============================================================================
+# FUTURE
+# =============================================================================
+
+from __future__ import unicode_literals, print_function
+
+
+# =============================================================================
 # DOCS
 # =============================================================================
 
-"""Features extractors base classes classes"""
+__doc__ = """Features extractors base classes classes"""
 
 
 # =============================================================================
@@ -37,14 +44,12 @@
 import warnings
 from collections import namedtuple
 
-import numpy as np
+import six
 
 
 # =============================================================================
 # CONSTANTS
 # =============================================================================
-
-MAX_VALUES_TO_REPR = 10
 
 DATA_MAGNITUDE = "magnitude"
 DATA_TIME = "time"
@@ -65,7 +70,7 @@ DATAS = (
     DATA_ALIGNED_MAGNITUDE,
     DATA_ALIGNED_MAGNITUDE2,
     DATA_ALIGNED_ERROR,
-    DATA_ALIGNED_ERROR2,
+    DATA_ALIGNED_ERROR2
 )
 
 
@@ -73,24 +78,27 @@ DATAS = (
 # EXCEPTIONS
 # =============================================================================
 
-
 class ExtractorBadDefinedError(Exception):
-    """The extractor class are not properly defined."""
+    """The extractor are not properly defined."""
+    pass
 
 
 class ExtractorContractError(ValueError):
-    """The extractor don't get the expected features, data, parameters
-    or whatever.
+    """The extractor dont get the expected features, data, parameters
+    or wathever.
 
     """
+    pass
 
 
 class ExtractorWarning(UserWarning):
     """Warn about the Extractor behavior."""
+    pass
 
 
 class FeatureExtractionWarning(UserWarning):
     """Warn about calculation of some feature"""
+    pass
 
 
 warnings.simplefilter("always", ExtractorWarning)
@@ -103,19 +111,11 @@ warnings.simplefilter("always", FeatureExtractionWarning)
 
 ExtractorConf = namedtuple(
     "ExtractorConf",
-    [
-        "data",
-        "optional",
-        "required_data",
-        "dependencies",
-        "params",
-        "features",
-        "warnings",
-    ],
-)
+    ["data", "dependencies", "params", "features", "warnings"])
 
 
 class ExtractorMeta(type):
+
     def __new__(mcls, name, bases, namespace):
         cls = super(ExtractorMeta, mcls).__new__(mcls, name, bases, namespace)
 
@@ -126,7 +126,8 @@ class ExtractorMeta(type):
 
         if not hasattr(cls, "data"):
             msg = "'{}' must redefine {}"
-            raise ExtractorBadDefinedError(msg.format(cls, "data attribute"))
+            raise ExtractorBadDefinedError(
+                msg.format(cls, "data attribute"))
         if not cls.data:
             msg = "'data' can't be empty"
             raise ExtractorBadDefinedError(msg)
@@ -138,28 +139,15 @@ class ExtractorMeta(type):
             msg = "'data' has duplicated values: {}"
             raise ExtractorBadDefinedError(msg.format(cls.data))
 
-        if not hasattr(cls, "optional"):
-            cls.optional = ()
-        for o in cls.optional:
-            if o not in cls.data:
-                msg = "'optional' data '{}' must be defined in 'data'"
-                raise ExtractorBadDefinedError(msg.format(o))
-
-        required_data = frozenset(d for d in cls.data if d not in cls.optional)
-        if not required_data:
-            msg = "All data can't be defined as 'optional'"
-            raise ExtractorBadDefinedError(msg)
-
         if not hasattr(cls, "features"):
             msg = "'{}' must redefine {}"
             raise ExtractorBadDefinedError(
-                msg.format(cls, "features attribute")
-            )
+                msg.format(cls, "features attribute"))
         if not cls.features:
             msg = "'features' can't be empty"
             raise ExtractorBadDefinedError(msg)
         for f in cls.features:
-            if not isinstance(f, str):
+            if not isinstance(f, six.string_types):
                 msg = "Feature name must be an instance of string. Found {}"
                 raise ExtractorBadDefinedError(msg.format(type(f)))
             if f in DATAS:
@@ -177,16 +165,15 @@ class ExtractorMeta(type):
         if not hasattr(cls, "dependencies"):
             cls.dependencies = ()
         for d in cls.dependencies:
-            if not isinstance(d, str):
+            if not isinstance(d, six.string_types):
                 msg = (
-                    "All Dependencies must be an instance of string. Found {}"
-                )
+                    "All Dependencies must be an instance of string. Found {}")
                 raise ExtractorBadDefinedError(msg.format(type(d)))
 
         if not hasattr(cls, "params"):
             cls.params = {}
         for p, default in cls.params.items():
-            if not isinstance(p, str):
+            if not isinstance(p, six.string_types):
                 msg = "Params names must be an instance of string. Found {}"
                 raise ExtractorBadDefinedError(msg.format(type(p)))
             if p in DATAS:
@@ -198,78 +185,48 @@ class ExtractorMeta(type):
 
         cls._conf = ExtractorConf(
             data=frozenset(cls.data),
-            optional=frozenset(cls.optional),
-            required_data=required_data,
             dependencies=frozenset(cls.dependencies),
             params=tuple(cls.params.items()),
             features=frozenset(cls.features),
-            warnings=tuple(cls.warnings),
-        )
+            warnings=tuple(cls.warnings))
 
         if not cls.__doc__:
             cls.__doc__ = ""
+        cls.__doc__ += "\n" + "\n".join([
+            ".. warning:: {}".format(w) for w in cls.warnings])
 
-        if cls.warnings:
-            cls.__doc__ += "\n    Warnings\n    ---------\n" + "\n".join(
-                ["    " + w for w in cls.warnings]
-            )
-
-        del (
-            cls.data,
-            cls.optional,
-            cls.dependencies,
-            cls.params,
-            cls.features,
-            cls.warnings,
-        )
+        del cls.data, cls.dependencies, cls.params, cls.features, cls.warnings
 
         return cls
 
 
-class Extractor(metaclass=ExtractorMeta):
-    """Base class to implement your own Feature-Extractor."""
+@six.add_metaclass(ExtractorMeta)
+class Extractor(object):
 
-    # This is only a place holder
     _conf = None
 
     @classmethod
     def get_data(cls):
-        """Retrieve the set of data used for this extractor."""
         return cls._conf.data
 
     @classmethod
-    def get_optional(cls):
-        """Retrieve the set of optional data used for this extractor."""
-        return cls._conf.optional
-
-    @classmethod
-    def get_required_data(cls):
-        """Retrieve the required set data used for this extractor."""
-        return cls._conf.required_data
-
-    @classmethod
     def get_dependencies(cls):
-        """Which other features are needed to execute this extractor."""
         return cls._conf.dependencies
 
     @classmethod
     def get_default_params(cls):
-        """The default values of the available configuration parameters."""
         return dict(cls._conf.params)
 
     @classmethod
     def get_features(cls):
-        """The set of features generated by this extractor."""
         return cls._conf.features
 
     @classmethod
     def get_warnings(cls):
-        """Warnings to be lunched wht the extractor is created."""
         return cls._conf.warnings
 
     @classmethod
     def has_warnings(cls):
-        """True if the extractor has some warning."""
         return not cls._conf.warnings
 
     def __init__(self, **cparams):
@@ -284,198 +241,68 @@ class Extractor(metaclass=ExtractorMeta):
         not_allowed = set(cparams).difference(self.params)
         if not_allowed:
             msg = "Extractor '{}' not allow the parameters: {}".format(
-                type(self).__name__, ", ".join(not_allowed)
-            )
+                type(self).__name__, ", ".join(not_allowed))
             raise ExtractorContractError(msg)
 
         # here all is ok
         self.params.update(cparams)
 
     def __repr__(self):
-        """x.__repr__() <==> repr(x)."""
-        if not hasattr(self, "__repr"):
-            params = self.params or {}
-            parsed_params = []
-            for k, v in params.items():
-                sk = str(k)
-                if np.ndim(v) != 0 and np.size(v) > MAX_VALUES_TO_REPR:
-                    tv = type(v)
-                    sv = f"<{tv.__module__}.{tv.__name__}>"
-                else:
-                    sv = str(v)
-                parsed_params.append(f"{sk}={sv}")
-            str_params = ", ".join(parsed_params)
-            self.__repr = f"{self.name}({str_params})"
-
-        return self.__repr
+        return str(self)
 
     def __str__(self):
-        """x.__str__() <==> str(x)."""
-        return repr(self)
+        if not hasattr(self, "__str"):
+            params = self.params
+            if params:
+                params = ", ".join([
+                    "{}={}".format(k, v) for k, v in params.items()])
+            else:
+                params = ""
+            self.__str = "{}({})".format(self.name, params)
+        return self.__str
 
-    def preprocess_arguments(self, **kwargs):
-        """Preprocess all the incoming argument
-        (timeserie + dependencies + parameters) to feed the `fit`,
-        `flatten_feature` and `plot_feature` methods.
-
-        """
-        # create the bessel for the parameters
-        new_kwargs = {}
-
-        # add the required features
-        dependencies = kwargs["features"]
-        new_kwargs = {k: dependencies[k] for k in self.get_dependencies()}
-
-        # add the required data
-        for d in self.get_data():
-            new_kwargs[d] = kwargs[d]
-
-        # add the configured parameters as parameters
-        new_kwargs.update(self.params)
-
-        return new_kwargs
+    def setup(self):
+        """This method will be executed before the feature is calculated"""
+        pass
 
     def fit(self):
-        """Low level feature extractor. Please redefine it!"""
         raise NotImplementedError()
 
+    def teardown(self):
+        """This method will be executed after the feature is calculated"""
+        pass
+
     def extract(self, **kwargs):
-        """Internal method to extract the parameters needed to execute the
-        feature extraction and then execute it.
+        # create the besel for the parameters
+        fit_kwargs = {}
 
-        Also check if all the post condition of the ``fit()`` method is
-        achieved.
+        # add the required features as parameters to fit()
+        dependencies = kwargs["features"]
+        fit_kwargs = {k: dependencies[k] for k in self.get_dependencies()}
 
-        """
-        fit_kwargs = self.preprocess_arguments(**kwargs)
+        # add the required data as parameters to fit()
+        for d in self.get_data():
+            fit_kwargs[d] = kwargs[d]
 
-        # run te extractor
-        result = self.fit(**fit_kwargs)
+        # add the configured parameters as parameters to fit()
+        fit_kwargs.update(self.params)
+        try:
+            # setup & run te extractor
+            self.setup()
+            result = self.fit(**fit_kwargs)
 
-        # validate if the extractors generates the expected features
-        expected = self.get_features()  # the expected features
-
-        diff = expected.difference(result.keys()) or set(result).difference(
-            expected
-        )  # some diff
-        if diff:
-            cls = type(self)
-            estr, fstr = ", ".join(expected), ", ".join(result.keys())
-            raise ExtractorContractError(
-                f"The extractor '{cls}' expect the features [{estr}], "
-                f"and found: [{fstr}]"
-            )
-
-        return dict(result)
-
-    def flatten_feature(self, feature, value, **kwargs):
-        """Convert the features into a dict of 1 dimension values.
-
-        The methods check if the dimension of the value is 1 then a
-        dictionary with key the feature name, and the value the value.
-        In other cases an recursive approach is taken where every feature
-        has as name `feature_<N>` as name, where N is the current dimension.
-
-        Example
-        -------
-
-        .. code-block:: pycon
-
-            >>> e.flatten("name", 1)
-            {'name': 1}
-            >>> e.flatten("name", [1, 2, 3])
-            {'name_0': 1, 'name_1': 2, 'name_2': 3}
-            >>> e.flatten("name", [1, [2, 3]])
-            {'name_0': 1, 'name_1_0': 2, 'name_1_1': 3}
-            >>> flatten("name", [[1, 2], [3, 4]])
-            {'name_0_0': 1, 'name_0_1': 2, 'name_1_0': 3, 'name_1_1': 4}
-
-        """
-        if np.ndim(value) == 0:
-            return {feature: value}
-        flatten_values = {}
-        for idx, v in enumerate(value):
-            flatten_name = f"{feature}_{idx}"
-            flatten_values.update(
-                self.flatten_feature(flatten_name, v, **kwargs)
-            )
-        return flatten_values
-
-    def flatten(self, feature, value, **kwargs):
-        """Convert the features into a dict of 1 dimension values.
-
-        This function uses internally the ``flaten_feature`` method but also
-        check the pre as post conditions of the flattened feature.
-
-        """
-        feats = self.get_features()
-        if feature not in feats:
-            raise ExtractorContractError(
-                f"Feature {feature} are not defined for the extractor {self}"
-            )
-
-        method_kwargs = self.preprocess_arguments(**kwargs)
-
-        all_features = kwargs["features"] or {}
-        efeatures = {k: v for k, v in all_features.items() if k in feats}
-
-        flat_feature = self.flatten_feature(
-            feature=feature,
-            value=value,
-            extractor_features=efeatures,
-            **method_kwargs,
-        )
-
-        if not isinstance(flat_feature, dict):
-            raise ExtractorContractError(
-                "flatten_feature() must return a dict instance"
-            )
-
-        for k, v in flat_feature.items():
-            if not k.startswith(feature):
-                raise ExtractorContractError(
-                    "All flatten features keys must start wih the "
-                    f"feature name ('{feature}')'. Found {k}"
-                )
-            dim = np.ndim(v)
-            if dim:
-                raise ExtractorContractError(
-                    f"Flattened feature {k} are not dimensionless. "
-                    f"Dims: {dim}"
-                )
-
-        return flat_feature
-
-    def plot_feature(self, feature, **kwargs):
-        raise NotImplementedError(
-            f"Plot for feature '{feature}' not implemented"
-        )
-
-    def plot(self, feature, value, ax, plot_kws, **kwargs):
-        """Plot a feature or raises an 'NotImplementedError'
-
-        This function uses internally the ``plot_feature`` method but also
-        check the pre as post conditions of the plotted feature.
-
-        """
-        feats = self.get_features()
-        if feature not in feats:
-            raise ExtractorContractError(
-                f"Feature {feature} are not defined for the extractor {self}"
-            )
-
-        method_kwargs = self.preprocess_arguments(**kwargs)
-
-        all_features = kwargs["features"] or {}
-        efeatures = {k: v for k, v in all_features.items() if k in feats}
-
-        self.plot_feature(
-            feature=feature,
-            value=value,
-            extractor_features=efeatures,
-            ax=ax,
-            plot_kws=plot_kws,
-            **method_kwargs,
-        )
-
-        return ax
+            # validate if the extractors generates the expected features
+            expected = self.get_features()  # the expected features
+            diff = (
+                expected.difference(result.keys()) or
+                set(result).difference(expected))  # some diff
+            if diff:
+                cls = type(self)
+                estr, fstr = ", ".join(expected), ", ".join(result.keys())
+                msg = (
+                    "The extractor '{}' expect the features [{}], "
+                    "and found: [{}]").format(cls, estr, fstr)
+                raise ExtractorContractError(msg)
+            return dict(result)
+        finally:
+            self.teardown()

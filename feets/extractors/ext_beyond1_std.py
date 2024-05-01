@@ -25,10 +25,17 @@
 
 
 # =============================================================================
+# FUTURE
+# =============================================================================
+
+from __future__ import unicode_literals
+
+
+# =============================================================================
 # DOC
 # =============================================================================
 
-""""""
+__doc__ = """"""
 
 
 # =============================================================================
@@ -43,7 +50,6 @@ from .core import Extractor
 # =============================================================================
 # EXTRACTOR CLASS
 # =============================================================================
-
 
 class Beyond1Std(Extractor):
     """
@@ -70,7 +76,7 @@ class Beyond1Std(Extractor):
 
     """
 
-    data = ["magnitude", "error"]
+    data = ['magnitude', 'error']
     features = ["Beyond1Std"]
 
     def fit(self, magnitude, error):
@@ -83,11 +89,7 @@ class Beyond1Std(Extractor):
         var = sum((magnitude - weighted_mean) ** 2)
         std = np.sqrt((1.0 / (n - 1)) * var)
 
-        count = np.sum(
-            np.logical_or(
-                magnitude > weighted_mean + std,
-                magnitude < weighted_mean - std,
-            )
-        )
+        count = np.sum(np.logical_or(magnitude > weighted_mean + std,
+                                     magnitude < weighted_mean - std))
 
         return {"Beyond1Std": float(count) / n}

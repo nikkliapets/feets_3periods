@@ -23,11 +23,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+
+# =============================================================================
+# FUTURE
+# =============================================================================
+
+from __future__ import unicode_literals
+
+
 # =============================================================================
 # DOC
 # =============================================================================
 
-""""""
+__doc__ = """"""
 
 
 # =============================================================================
@@ -44,7 +52,6 @@ from .core import Extractor
 # =============================================================================
 # EXTRACTOR CLASS
 # =============================================================================
-
 
 class AutocorLength(Extractor):
     r"""
@@ -81,28 +88,20 @@ class AutocorLength(Extractor):
 
     """
 
-    data = ["magnitude"]
-    features = ["Autocor_length"]
+    data = ['magnitude']
+    features = ['Autocor_length']
     params = {"nlags": 100}
 
     def fit(self, magnitude, nlags):
 
-        AC = stattools.acf(magnitude, nlags=nlags, fft=True)
-        k = next(
-            (index for index, value in enumerate(AC) if value < np.exp(-1)),
-            None,
-        )
+        AC = stattools.acf(magnitude, nlags=nlags)
+        k = next((index for index, value in
+                 enumerate(AC) if value < np.exp(-1)), None)
 
         while k is None:
             nlags = nlags + 100
-            AC = stattools.acf(magnitude, nlags=nlags, fft=True)
-            k = next(
-                (
-                    index
-                    for index, value in enumerate(AC)
-                    if value < np.exp(-1)
-                ),
-                None,
-            )
+            AC = stattools.acf(magnitude, nlags=nlags)
+            k = next((index for index, value in
+                      enumerate(AC) if value < np.exp(-1)), None)
 
-        return {"Autocor_length": k}
+        return {'Autocor_length': k}

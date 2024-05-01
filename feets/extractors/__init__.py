@@ -24,10 +24,17 @@
 # SOFTWARE.
 
 # =============================================================================
+# FUTURE
+# =============================================================================
+
+from __future__ import print_function
+
+
+# =============================================================================
 # DOCS
 # =============================================================================
 
-"""Features extractors classes and register utilities"""
+__doc__ = """Features extractors classes and register utilities"""
 
 __all__ = [
     "DATAS",
@@ -40,8 +47,7 @@ __all__ = [
     "ExtractorBadDefinedError",
     "ExtractorContractError",
     "ExtractorWarning",
-    "Extractor",
-]
+    "Extractor"]
 
 # =============================================================================
 # IMPORTS
@@ -49,13 +55,12 @@ __all__ = [
 
 import inspect
 
+import six
+
 from .core import (
-    DATAS,
-    Extractor,
-    ExtractorBadDefinedError,
-    ExtractorContractError,
-    ExtractorWarning,
-)
+    Extractor, ExtractorBadDefinedError, ExtractorContractError,
+    ExtractorWarning, DATAS)  # noqa
+
 
 # =============================================================================
 # REGISTER UTILITY
@@ -65,7 +70,6 @@ _extractors = {}
 
 
 def register_extractor(cls):
-    """Register a given extractor class into the feets insfrastructure."""
     if not inspect.isclass(cls) or not issubclass(cls, Extractor):
         msg = "'cls' must be a subclass of Extractor. Found: {}"
         raise TypeError(msg.format(cls))
@@ -79,20 +83,11 @@ def register_extractor(cls):
 
 
 def registered_extractors():
-    """Returns all the available extractor classes as a dicctionries where
-    the key is the feature extracted for the extractor on the *value*.
-
-    Notes
-    -----
-    Multiple features can be extracted with the same extractor
-
-    """
     return dict(_extractors)
 
 
 def is_registered(obj):
-    """Check if a given extractor class is already registered."""
-    if isinstance(obj, str):
+    if isinstance(obj, six.string_types):
         features = [obj]
     elif not inspect.isclass(obj) or not issubclass(obj, Extractor):
         msg = "'cls' must be a subclass of Extractor. Found: {}"
@@ -103,17 +98,17 @@ def is_registered(obj):
 
 
 def available_features():
-    """Retrieve all the current available features in feets."""
     return sorted(_extractors.keys())
 
 
 def extractor_of(feature):
-    """Retrieve the current register extractor class for the given feature."""
     return _extractors[feature]
 
 
 def sort_by_dependencies(exts, retry=None):
-    """Calculate the Feature Extractor Resolution Order."""
+    """Calculate the Feature Extractor Resolution Order.
+
+    """
     sorted_ext, features_from_sorted = [], set()
     pending = [(e, 0) for e in exts]
     retry = len(exts) * 100 if retry is None else retry
@@ -147,7 +142,6 @@ from .ext_beyond1_std import *  # noqa
 from .ext_car import *  # noqa
 from .ext_color import *  # noqa
 from .ext_con import *  # noqa
-from .ext_dmdt import *  # noqa
 from .ext_eta_color import *  # noqa
 from .ext_eta_e import *  # noqa
 from .ext_flux_percentile_ratio import *  # noqa
@@ -164,8 +158,8 @@ from .ext_pair_slope_trend import *  # noqa
 from .ext_percent_amplitude import *  # noqa
 from .ext_percent_difference_flux_percentile import *  # noqa
 from .ext_q31 import *  # noqa
+from .ext_q31 import *  # noqa
 from .ext_rcs import *  # noqa
-from .ext_signature import *  # noqa
 from .ext_skew import *  # noqa
 from .ext_slotted_a_length import *  # noqa
 from .ext_small_kurtosis import *  # noqa

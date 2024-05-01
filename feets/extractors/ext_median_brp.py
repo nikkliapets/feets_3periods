@@ -25,10 +25,17 @@
 
 
 # =============================================================================
+# FUTURE
+# =============================================================================
+
+from __future__ import unicode_literals
+
+
+# =============================================================================
 # DOC
 # =============================================================================
 
-""""""
+__doc__ = """"""
 
 
 # =============================================================================
@@ -43,7 +50,6 @@ from .core import Extractor
 # =============================================================================
 # EXTRACTOR CLASS
 # =============================================================================
-
 
 class MedianBRP(Extractor):
     r"""
@@ -70,7 +76,7 @@ class MedianBRP(Extractor):
 
     """
 
-    data = ["magnitude"]
+    data = ['magnitude']
     features = ["MedianBRP"]
 
     def fit(self, magnitude):
@@ -78,10 +84,7 @@ class MedianBRP(Extractor):
         amplitude = (np.max(magnitude) - np.min(magnitude)) / 10
         n = len(magnitude)
 
-        count = np.sum(
-            np.logical_and(
-                magnitude < median + amplitude, magnitude > median - amplitude
-            )
-        )
+        count = np.sum(np.logical_and(magnitude < median + amplitude,
+                                      magnitude > median - amplitude))
 
         return {"MedianBRP": float(count) / n}

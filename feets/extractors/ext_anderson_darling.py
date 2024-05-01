@@ -25,10 +25,17 @@
 
 
 # =============================================================================
+# FUTURE
+# =============================================================================
+
+from __future__ import unicode_literals
+
+
+# =============================================================================
 # DOC
 # =============================================================================
 
-""""""
+__doc__ = """"""
 
 
 # =============================================================================
@@ -46,7 +53,6 @@ from .core import Extractor
 # EXTRACTOR CLASS
 # =============================================================================
 
-
 class AndersonDarling(Extractor):
     """
     **AndersonDarling**
@@ -60,27 +66,22 @@ class AndersonDarling(Extractor):
     For a normal distribution the Anderson-Darling statistic should take values
     close to 0.25.
 
-
     References
     ----------
 
-    .. [kim2009trending] Kim, D. W., Protopapas, P., Alcock, C.,
-       Byun, Y. I., & Bianco, F. (2009). De-Trending Time Series for
-       Astronomical Variability Surveys. Monthly Notices of the Royal
-       Astronomical Society, 397(1), 558-568.
-       Doi:10.1111/j.1365-2966.2009.14967.x.
+    .. [kim2009trending] Kim, D. W., Protopapas, P., Alcock, C., Byun, Y. I.,
+       & Bianco, F. (2009). De-Trending Time Series for Astronomical
+       Variability Surveys. Monthly Notices of the Royal Astronomical Society,
+       397(1), 558-568. Doi:10.1111/j.1365-2966.2009.14967.x.
 
     """
 
-    data = ["magnitude"]
+    data = ['magnitude']
     features = ["AndersonDarling"]
     warnings = [
-        (
-            "The original FATS documentation says that the result of "
-            "AndersonDarling must be ~0.25 for gausian distribution but the  "
-            "result is ~-0.60"
-        )
-    ]
+        ("The original FATS documentation says that the result of "
+         "AndersonDarling must be ~0.25 for gausian distribution but the  "
+         "result is ~-0.60")]
 
     def fit(self, magnitude):
         ander = stats.anderson(magnitude)[0]

@@ -44,6 +44,7 @@ __doc__ = """"""
 
 import numpy as np
 
+from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 
 from .ext_lomb_scargle import lscargle
@@ -174,6 +175,14 @@ class FourierComponents(Extractor):
                 'Freq3_harmonics_amplitude_1',
                 'Freq3_harmonics_amplitude_2',
                 'Freq3_harmonics_amplitude_3',
+                'Freq4_harmonics_amplitude_0',
+                'Freq4_harmonics_amplitude_1',
+                'Freq4_harmonics_amplitude_2',
+                'Freq4_harmonics_amplitude_3',
+                'Freq5_harmonics_amplitude_0',
+                'Freq5_harmonics_amplitude_1',
+                'Freq5_harmonics_amplitude_2',
+                'Freq5_harmonics_amplitude_3',
                 'Freq1_harmonics_rel_phase_0',
                 'Freq1_harmonics_rel_phase_1',
                 'Freq1_harmonics_rel_phase_2',
@@ -186,8 +195,19 @@ class FourierComponents(Extractor):
                 'Freq3_harmonics_rel_phase_1',
                 'Freq3_harmonics_rel_phase_2',
                 'Freq3_harmonics_rel_phase_3',
+                'Freq4_harmonics_rel_phase_0',
+                'Freq4_harmonics_rel_phase_1',
+                'Freq4_harmonics_rel_phase_2',
+                'Freq4_harmonics_rel_phase_3',
+                'Freq5_harmonics_rel_phase_0',
+                'Freq5_harmonics_rel_phase_1',
+                'Freq5_harmonics_rel_phase_2',
+                'Freq5_harmonics_rel_phase_3',
                 'PeriodLS2',
-                'PeriodLS3']
+                'PeriodLS3',
+                'PeriodLS4',
+                'PeriodLS5'
+                ]
     params = {
         "lscargle_kwds": {
             "autopower_kwds": {
@@ -205,78 +225,186 @@ class FourierComponents(Extractor):
                     b * np.cos(2 * np.pi * Freq * x) + c)
         return func
 
-    def _components(self, magnitude, time, lscargle_kwds):
+    def _components(self, magnitude, time, lscargle_kwds, snr_threshold=3, window_size=0.5):
+
         time = time - np.min(time)
         A, PH = [], []
         freq = []
 
-        for i in range(3):
-            frequency, power, fmax = lscargle(time, magnitude, **lscargle_kwds)
+        # helper function to calculate SNR
+        def calculate_snr(frequency, power, fmax_idx, window_size):
+            peak_power = power[fmax_idx]
+            fmax = frequency[fmax_idx]
 
-            fundamental_Freq = frequency[fmax]
-            
+            # window around the peak
+            window_mask = (frequency >= (fmax - window_size)) & (frequency <= (fmax + window_size))
+
+            # excluding the peak itself from the noise calculation
+            noise_power = np.delete(power[window_mask], np.argmax(frequency[window_mask] == fmax))
+
+            if noise_power.size == 0:
+                return np.inf  # avoiding division by zero, treat as infinitely significant
+
+            average_noise_power = np.mean(noise_power)
+
+            snr = peak_power / average_noise_power
+            return snr
+
+        # helper function to get peaks w/o SNR check
+        def get_highest_frequency(time, magnitude, lscargle_kwds):
+            frequency, power, _ = lscargle(time, magnitude, **lscargle_kwds)
+    
+            peaks, _ = find_peaks(power)
+    
+            if len(peaks) == 0:
+                return None, None, None 
+
+            highest_peak_idx = peaks[np.argmax(power[peaks])]
+            highest_freq = frequency[highest_peak_idx]
+    
+            return highest_freq, power, highest_peak_idx
+
+        # helper function to get peaks with SNR check
+        def get_significant_frequency(time, magnitude, lscargle_kwds, snr_threshold, window_size, freq_range=None):
+            frequency, power, _ = lscargle(time, magnitude, **lscargle_kwds)
+
+            if freq_range:
+                mask = (frequency >= freq_range[0]) & (frequency <= freq_range[1])
+                frequency = frequency[mask]
+                power = power[mask]
+
+            peaks, _ = find_peaks(power)
+
+            if len(peaks) == 0:
+                return None, None, None
+
+            highest_peak_idx = peaks[np.argmax(power[peaks])]
+            snr = calculate_snr(frequency, power, highest_peak_idx, window_size)
+
+            if snr < snr_threshold:
+                return None, None, None
+
+            return frequency[highest_peak_idx], power, highest_peak_idx
+
+        # extracting the initial 3 frequencies
+        for i in range(3):
+            fundamental_Freq, power, fmax = get_highest_frequency(time, magnitude, lscargle_kwds)
+
             Atemp, PHtemp = [], []
             omagnitude = magnitude
-
             freq.append(fundamental_Freq)
 
             for j in range(4):
                 function_to_fit = self._yfunc_maker((j + 1) * fundamental_Freq)
-                popt0, popt1, popt2 = curve_fit(
-                    function_to_fit, time, omagnitude)[0][:3]
-
+                popt0, popt1, popt2 = curve_fit(function_to_fit, time, omagnitude)[0][:3]
                 Atemp.append(np.sqrt(popt0 ** 2 + popt1 ** 2))
                 PHtemp.append(np.arctan(popt1 / popt0))
-
-                model = self._model(
-                    time, popt0, popt1, popt2,
-                    (j+1) * fundamental_Freq)
+                model = self._model(time, popt0, popt1, popt2, (j + 1) * fundamental_Freq)
                 magnitude = np.array(magnitude) - model
 
             A.append(Atemp)
             PH.append(PHtemp)
 
+        # checking the ranges of the extracted frequencies
+        range1 = [0.4, 3.3]
+        range2 = [3.3, 27.4]
+        range1_present = any(range1[0] <= f <= range1[1] for f in freq)
+        range2_present = any(range2[0] <= f <= range2[1] for f in freq)
+
+        # extracting 2 more frequencies based on the check
+        if range1_present and range2_present:
+            # if both ranges are present, extracting 2 more frequencies as before
+            for i in range(2):
+                fundamental_Freq, power, fmax = get_significant_frequency(time, magnitude, lscargle_kwds, snr_threshold, window_size)
+                
+                if fundamental_Freq is None:
+                    break
+
+                Atemp, PHtemp = [], []
+                omagnitude = magnitude
+                freq.append(fundamental_Freq)
+
+                for j in range(4):
+                    function_to_fit = self._yfunc_maker((j + 1) * fundamental_Freq)
+                    popt0, popt1, popt2 = curve_fit(function_to_fit, time, omagnitude)[0][:3]
+                    Atemp.append(np.sqrt(popt0 ** 2 + popt1 ** 2))
+                    PHtemp.append(np.arctan(popt1 / popt0))
+                    model = self._model(time, popt0, popt1, popt2, (j + 1) * fundamental_Freq)
+                    magnitude = np.array(magnitude) - model
+
+                A.append(Atemp)
+                PH.append(PHtemp)
+        else:
+            # if one of the ranges is not present, switching to the missing range
+            if not range1_present:
+                # extracting from range 1
+                for i in range(2):
+                    fundamental_Freq, power, fmax = get_significant_frequency(time, magnitude, lscargle_kwds, snr_threshold, window_size, range1)
+                    if fundamental_Freq is None:
+                        break
+
+                    Atemp, PHtemp = [], []
+                    omagnitude = magnitude
+                    freq.append(fundamental_Freq)
+
+                    for j in range(4):
+                        function_to_fit = self._yfunc_maker((j + 1) * fundamental_Freq)
+                        popt0, popt1, popt2 = curve_fit(function_to_fit, time, omagnitude)[0][:3]
+                        Atemp.append(np.sqrt(popt0 ** 2 + popt1 ** 2))
+                        PHtemp.append(np.arctan(popt1 / popt0))
+                        model = self._model(time, popt0, popt1, popt2, (j + 1) * fundamental_Freq)
+                        magnitude = np.array(magnitude) - model
+
+                    A.append(Atemp)
+                    PH.append(PHtemp)
+
+            elif not range2_present:
+                # extracting from range 2
+                for i in range(2):
+                    fundamental_Freq, power, fmax = get_significant_frequency(time, magnitude, lscargle_kwds, snr_threshold, window_size, range2)
+                    
+                    if fundamental_Freq is None:
+                        break
+                        
+                    Atemp, PHtemp = [], []
+                    omagnitude = magnitude
+                    freq.append(fundamental_Freq)
+
+                    for j in range(4):
+                        function_to_fit = self._yfunc_maker((j + 1) * fundamental_Freq)
+                        popt0, popt1, popt2 = curve_fit(function_to_fit, time, omagnitude)[0][:3]
+                        Atemp.append(np.sqrt(popt0 ** 2 + popt1 ** 2))
+                        PHtemp.append(np.arctan(popt1 / popt0))
+                        model = self._model(time, popt0, popt1, popt2, (j + 1) * fundamental_Freq)
+                        magnitude = np.array(magnitude) - model
+
+                    A.append(Atemp)
+                    PH.append(PHtemp)
+
         PH = np.asarray(PH)
         scaledPH = PH - PH[:, 0].reshape((len(PH), 1))
 
+        #print(freq)
         return A, scaledPH, freq
 
     def fit(self, magnitude, time, lscargle_kwds):
         lscargle_kwds = lscargle_kwds or {}
 
         A, sPH, freq = self._components(magnitude, time, lscargle_kwds)
-        result = {
-            "Freq1_harmonics_amplitude_0": A[0][0],
-            "Freq1_harmonics_amplitude_1": A[0][1],
-            "Freq1_harmonics_amplitude_2": A[0][2],
-            "Freq1_harmonics_amplitude_3": A[0][3],
+        result = {}
 
-            "Freq2_harmonics_amplitude_0": A[1][0],
-            "Freq2_harmonics_amplitude_1": A[1][1],
-            "Freq2_harmonics_amplitude_2": A[1][2],
-            "Freq2_harmonics_amplitude_3": A[1][3],
-
-            "Freq3_harmonics_amplitude_0": A[2][0],
-            "Freq3_harmonics_amplitude_1": A[2][1],
-            "Freq3_harmonics_amplitude_2": A[2][2],
-            "Freq3_harmonics_amplitude_3": A[2][3],
-
-            "Freq1_harmonics_rel_phase_0": sPH[0][0],
-            "Freq1_harmonics_rel_phase_1": sPH[0][1],
-            "Freq1_harmonics_rel_phase_2": sPH[0][2],
-            "Freq1_harmonics_rel_phase_3": sPH[0][3],
-
-            "Freq2_harmonics_rel_phase_0": sPH[1][0],
-            "Freq2_harmonics_rel_phase_1": sPH[1][1],
-            "Freq2_harmonics_rel_phase_2": sPH[1][2],
-            "Freq2_harmonics_rel_phase_3": sPH[1][3],
-
-            "Freq3_harmonics_rel_phase_0": sPH[2][0],
-            "Freq3_harmonics_rel_phase_1": sPH[2][1],
-            "Freq3_harmonics_rel_phase_2": sPH[2][2],
-            "Freq3_harmonics_rel_phase_3": sPH[2][3],
-
-            "PeriodLS2": 1/freq[1],
-            "PeriodLS3": 1/freq[2]}
-            
+        for i in range(5):
+            if i < len(freq):
+                for j in range(4):
+                    result[f"Freq{i+1}_harmonics_amplitude_{j}"] = A[i][j]
+                    result[f"Freq{i+1}_harmonics_rel_phase_{j}"] = sPH[i][j]
+                if i > 0:
+                    result[f"PeriodLS{i+1}"] = 1 / freq[i]
+            else:
+                for j in range(4):
+                    result[f"Freq{i+1}_harmonics_amplitude_{j}"] = None
+                    result[f"Freq{i+1}_harmonics_rel_phase_{j}"] = None
+                if i > 0:
+                    result[f"PeriodLS{i+1}"] = None
+    
         return result
